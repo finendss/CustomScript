@@ -1,0 +1,699 @@
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/finendss/VowLibrary/refs/heads/main/WINDUI.lua"))()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+
+local Window = WindUI:CreateWindow({
+    Title = "叛逆前哨",
+    Icon = "sparkles",
+    Author = "BY.BOBO工作室",
+    Folder = "DefenseSystem",
+    Size = UDim2.fromOffset(400, 400),
+    Theme = "Dark",
+})
+
+Window:ToggleTransparency(true)
+
+local TimeTag = Window:Tag({
+    Title = "00:00",
+    Color = Color3.fromHex("#30ff6a")
+})
+
+local hue = 0
+task.spawn(function()
+    while true do
+        local now = os.date("*t")
+        local hours = string.format("%02d", now.hour)
+        local minutes = string.format("%02d", now.min)
+        
+        hue = (hue + 0.01) % 1
+        local rainbowColor = Color3.fromHSV(hue, 1, 1)
+        
+        TimeTag:SetTitle(hours .. ":" .. minutes)
+        TimeTag:SetColor(rainbowColor) 
+
+        task.wait(0.06)
+    end
+end)
+
+Window:Tag({
+    Title = "定制",
+    Color = Color3.fromHex("#FFD700")
+})
+
+task.wait(0.3)
+
+Window:EditOpenButton({
+    Title = "叛逆前哨",
+    Icon = "monitor",
+    CornerRadius = UDim.new(0, 16),
+    StrokeThickness = 2,
+    Color = ColorSequence.new(Color3.fromHex("FF6B6B")),
+    Draggable = true,
+})
+
+task.wait(0.2)
+
+local Tab = Window:Tab({
+    Title = "主要",
+    Icon = "settings",
+    Locked = false,
+})
+
+Tab:Section({Title = "杂项", TextXAlignment = "Left", TextSize = 17})
+
+Tab:Slider({
+    Title = "奔跑速度",
+    Value = {
+        Min = 16,
+        Max = 500,
+        Default = 16,
+    },
+    Increment = 1,
+    Callback = function(value)
+        local character = game.Players.LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = value
+            end
+        end
+    end
+})
+
+local jumpConnection = nil
+
+Tab:Button({
+    Title = "无限跳",
+    Callback = function()
+        if jumpConnection then
+            jumpConnection:Disconnect()
+            jumpConnection = nil
+            WindUI:Notify({
+                Title = "已关闭",
+                Content = "",
+                Duration = 2
+            })
+            return
+        end
+        
+        jumpConnection = UserInputService.JumpRequest:Connect(function()
+            local character = game.Players.LocalPlayer.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid:ChangeState("Jumping")
+                end
+            end
+        end)
+        
+        WindUI:Notify({
+            Title = "已开启",
+            Content = "",
+            Duration = 3
+        })
+    end
+})
+
+local lightConnection = nil
+
+Tab:Button({
+    Title = "肩灯(点俩次)",
+    Callback = function()
+        if lightConnection then
+            lightConnection:Disconnect()
+            lightConnection = nil
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, nil)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, nil)
+            WindUI:Notify({
+                Title = "已关闭",
+                Content = "",
+                Duration = 2
+            })
+        else
+            lightConnection = RunService.Heartbeat:Connect(function()
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, nil)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, nil)
+            end)
+            WindUI:Notify({
+                Title = "已开启",
+                Content = "",
+                Duration = 2
+            })
+        end
+    end
+})
+
+Tab:Toggle({
+    Title = "高亮",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            game.Lighting.Ambient = Color3.new(1, 1, 1)
+        else
+            game.Lighting.Ambient = Color3.new(0, 0, 0)
+        end
+    end
+})
+
+Tab:Toggle({
+    Title = "开启聊天框",
+    Default = true,
+    Callback = function(state)
+        if state then
+            game.TextChatService.ChatWindowConfiguration.Enabled = true
+        else
+            game.TextChatService.ChatWindowConfiguration.Enabled = false    
+        end
+    end
+})
+
+Tab:Section({Title = "人物飞行", TextXAlignment = "Left", TextSize = 17})
+
+local flightData = {
+    isFlying = false,
+    speed = 50,
+    originalGravity = nil,
+    originalWalkSpeed = nil,
+    connection = nil
+}
+
+local player = game.Players.LocalPlayer
+
+local function startFlight()
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    flightData.originalGravity = workspace.Gravity
+    flightData.originalWalkSpeed = humanoid.WalkSpeed
+    
+    workspace.Gravity = 0
+    humanoid.WalkSpeed = flightData.speed
+    humanoid.PlatformStand = true
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    if not rootPart then return end
+    
+    if flightData.connection then
+        flightData.connection:Disconnect()
+        flightData.connection = nil
+    end
+    
+    flightData.connection = RunService.Heartbeat:Connect(function()
+        if not flightData.isFlying then return end
+        
+        local currentChar = player.Character
+        if not currentChar then return end
+        
+        local currentHumanoid = currentChar:FindFirstChild("Humanoid")
+        if not currentHumanoid then return end
+        
+        local currentRoot = currentChar:FindFirstChild("HumanoidRootPart") or currentChar:FindFirstChild("Torso")
+        if not currentRoot then return end
+        
+        local moveDirection = currentHumanoid.MoveDirection
+        
+        if moveDirection.Magnitude > 0 then
+            currentChar:TranslateBy(moveDirection * flightData.speed * 0.1)
+            currentRoot.CFrame = CFrame.lookAt(currentRoot.Position, currentRoot.Position + moveDirection)
+        end
+    end)
+end
+
+local function stopFlight()
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            if flightData.originalGravity then
+                workspace.Gravity = flightData.originalGravity
+                flightData.originalGravity = nil
+            end
+            if flightData.originalWalkSpeed then
+                humanoid.WalkSpeed = flightData.originalWalkSpeed
+                flightData.originalWalkSpeed = nil
+            end
+            humanoid.PlatformStand = false
+        end
+    end
+    
+    if flightData.connection then
+        flightData.connection:Disconnect()
+        flightData.connection = nil
+    end
+end
+
+Tab:Toggle({
+    Title = "飞行",
+    Default = false,
+    Callback = function(v) 
+        pcall(function() 
+            flightData.isFlying = v
+            if v then
+                startFlight()
+            else
+                stopFlight()
+            end
+        end) 
+    end
+})
+
+Tab:Slider({
+    Title = "飞行速度",
+    Value = {Min = 10, Max = 200, Default = 50},
+    Increment = 1,
+    Callback = function(v) 
+        pcall(function() 
+            flightData.speed = v
+            if flightData.isFlying then
+                local char = player.Character
+                if char then
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    if humanoid then
+                        humanoid.WalkSpeed = v
+                    end
+                end
+            end
+        end) 
+    end
+})
+
+Tab:Button({
+    Title = "上升",
+    Callback = function()
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+            if root then
+                root.CFrame = root.CFrame + Vector3.new(0, 5, 0)
+            end
+        end
+    end
+})
+
+Tab:Button({
+    Title = "下降",
+    Callback = function()
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+            if root then
+                root.CFrame = root.CFrame - Vector3.new(0, 5, 0)
+            end
+        end
+    end
+})
+
+player.CharacterAdded:Connect(function()
+    if flightData.isFlying then
+        task.wait(0.5)
+        startFlight()
+    end
+end)
+
+Tab:Section({Title = "载具飞行", TextXAlignment = "Left", TextSize = 17})
+
+local vehicleFlightData = {
+    isFlying = false,
+    speed = 50,
+    bodyVelocity = nil,
+    bodyGyro = nil
+}
+
+local function getVehicleRoot()
+    local char = player.Character
+    if not char then return nil end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return nil end
+    local seat = humanoid.SeatPart
+    if seat then
+        local vehicle = seat.Parent
+        return vehicle:FindFirstChildWhichIsA("BasePart") or vehicle.PrimaryPart
+    end
+    return nil
+end
+
+local function clearVehicleMovers()
+    if vehicleFlightData.bodyVelocity then
+        vehicleFlightData.bodyVelocity:Destroy()
+        vehicleFlightData.bodyVelocity = nil
+    end
+    if vehicleFlightData.bodyGyro then
+        vehicleFlightData.bodyGyro:Destroy()
+        vehicleFlightData.bodyGyro = nil
+    end
+end
+
+local function applyVehicleFly(direction)
+    if not vehicleFlightData.isFlying then return end
+    local root = getVehicleRoot()
+    if not root then return end
+
+    clearVehicleMovers()
+
+    local BV = Instance.new("BodyVelocity", root)
+    local BG = Instance.new("BodyGyro", root)
+    BG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BG.D = 5000
+    BG.P = 50000
+    BG.CFrame = workspace.CurrentCamera.CFrame
+    BV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    
+    vehicleFlightData.bodyVelocity = BV
+    vehicleFlightData.bodyGyro = BG
+
+    if direction then
+        BV.Velocity = direction * vehicleFlightData.speed
+    end
+end
+
+local function stopVehicleFly()
+    vehicleFlightData.isFlying = false
+    clearVehicleMovers()
+    local root = getVehicleRoot()
+    if root then
+        root.Anchored = false
+    end
+end
+
+Tab:Toggle({
+    Title = "载具飞行",
+    Default = false,
+    Callback = function(v)
+        pcall(function()
+            vehicleFlightData.isFlying = v
+            if v then
+                applyVehicleFly(nil)
+            else
+                stopVehicleFly()
+            end
+        end)
+    end
+})
+
+Tab:Slider({
+    Title = "载具飞行速度",
+    Value = {Min = 10, Max = 200, Default = 50},
+    Increment = 1,
+    Callback = function(v)
+        pcall(function()
+            vehicleFlightData.speed = v
+        end)
+    end
+})
+
+Tab:Button({
+    Title = "上升",
+    Callback = function()
+        pcall(function()
+            if vehicleFlightData.isFlying then
+                applyVehicleFly(Vector3.new(0, 1, 0))
+            end
+        end)
+    end
+})
+
+Tab:Button({
+    Title = "下降",
+    Callback = function()
+        pcall(function()
+            if vehicleFlightData.isFlying then
+                applyVehicleFly(Vector3.new(0, -1, 0))
+            end
+        end)
+    end
+})
+
+Tab:Button({
+    Title = "前进",
+    Callback = function()
+        pcall(function()
+            if vehicleFlightData.isFlying then
+                applyVehicleFly(workspace.CurrentCamera.CFrame.LookVector)
+            end
+        end)
+    end
+})
+
+Tab:Button({
+    Title = "后退",
+    Callback = function()
+        pcall(function()
+            if vehicleFlightData.isFlying then
+                applyVehicleFly(-workspace.CurrentCamera.CFrame.LookVector)
+            end
+        end)
+    end
+})
+
+Tab:Button({
+    Title = "停止",
+    Callback = function()
+        pcall(function()
+            stopVehicleFly()
+        end)
+    end
+})
+
+local Tab2 = Window:Tab({
+    Title = "绘制",
+    Icon = "settings",
+    Locked = false,
+})
+
+Tab2:Section({Title = "玩家绘制", TextXAlignment = "Left", TextSize = 17})
+
+local localPlayer = Players.LocalPlayer
+local espEnabled = false
+local boxEnabled = false
+local nameEnabled = false
+local espConnection = nil
+
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ESPFolder"
+espFolder.Parent = workspace
+
+local function clearESP()
+    espFolder:ClearAllChildren()
+end
+
+local function createESP(targetPlayer)
+    local char = targetPlayer.Character
+    if not char then return end
+    
+    local head = char:FindFirstChild("Head")
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not head or not humanoid or humanoid.Health <= 0 then return end
+    
+    local playerFolder = Instance.new("Folder")
+    playerFolder.Name = targetPlayer.Name
+    playerFolder.Parent = espFolder
+
+    if nameEnabled then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "NameTag"
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 500
+        billboard.Adornee = head
+        billboard.Parent = playerFolder
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextScaled = true
+        textLabel.Text = targetPlayer.Name
+        textLabel.Parent = billboard
+    end
+
+    if boxEnabled then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "Box"
+        highlight.Adornee = char
+        highlight.FillColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillTransparency = 1
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineTransparency = 0
+        highlight.Parent = playerFolder
+    end
+end
+
+local function updateESP()
+    clearESP()
+    
+    for _, targetPlayer in pairs(Players:GetPlayers()) do
+        if targetPlayer ~= localPlayer and targetPlayer.Character then
+            pcall(createESP, targetPlayer)
+        end
+    end
+end
+
+local function startESP()
+    if espConnection then
+        espConnection:Disconnect()
+        espConnection = nil
+    end
+    espConnection = RunService.RenderStepped:Connect(function()
+        updateESP()
+    end)
+end
+
+local function stopESP()
+    if espConnection then
+        espConnection:Disconnect()
+        espConnection = nil
+    end
+    clearESP()
+end
+
+local function checkESPState()
+    if boxEnabled or nameEnabled then
+        if not espConnection then
+            startESP()
+        end
+    else
+        if espConnection then
+            stopESP()
+        end
+    end
+end
+
+Tab2:Toggle({
+    Title = "绘制方框",
+    Default = false,
+    Callback = function(v)
+        boxEnabled = v
+        checkESPState()
+    end
+})
+
+
+local Tab3 = Window:Tab({
+    Title = "传送",
+    Icon = "settings",
+    Locked = false,
+})
+
+local function getPlayerList()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(list, p.Name)
+        end
+    end
+    return list
+end
+
+local selectedPlayer = nil
+
+local dropdown = Tab3:Dropdown({
+    Title = "选择玩家",
+    Values = getPlayerList(),
+    Multi = false,
+    Default = "",
+    Callback = function(value)
+        selectedPlayer = value
+    end
+})
+
+Tab3:Button({
+    Title = "传送到玩家",
+    Callback = function()
+        if selectedPlayer then
+            local target = Players:FindFirstChild(selectedPlayer)
+            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and player.Character then
+                local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.CFrame = target.Character.HumanoidRootPart.CFrame
+                end
+            end
+        end
+    end
+})
+
+Tab3:Button({
+    Title = "刷新玩家列表",
+    Callback = function()
+        dropdown:SetValues(getPlayerList())
+    end
+})
+
+local function teleport(position)
+    local char = player.Character
+    if not char then return end
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    rootPart.CFrame = CFrame.new(position)
+end
+
+Tab3:Button({
+    Title = "传送灯塔",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-3253.43, 325.10, -3047.20))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送营地",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-1455.12, 193.11, -1294.84))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送野外",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(1829.45, 197.00, -6252.69))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送集装箱",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-14.87, 177.21, 524.12))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送阿尔法",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(852.54, 177.00, -104.30))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送前哨",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-1217.23, 195.02, -4499.58))
+        end)
+    end
+})
+
+local Tab4 = Window:Tab({
+    Title = "战斗(还在制作,制作完了就更新)",
+    Icon = "settings",
+    Locked = false,
+})
