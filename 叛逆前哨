@@ -691,9 +691,3 @@ Tab3:Button({
         end)
     end
 })
-
-local Tab4 = Window:Tab({
-    Title = "战斗(还在制作,制作完了就更新)",
-    Icon = "settings",
-    Locked = false,
-})
