@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
 local Window = WindUI:CreateWindow({
     Title = "叛逆前哨",
@@ -72,7 +73,7 @@ Tab:Slider({
     },
     Increment = 1,
     Callback = function(value)
-        local character = game.Players.LocalPlayer.Character
+        local character = Players.LocalPlayer.Character
         if character then
             local humanoid = character:FindFirstChildOfClass("Humanoid")
             if humanoid then
@@ -83,7 +84,6 @@ Tab:Slider({
 })
 
 local jumpConnection = nil
-
 Tab:Button({
     Title = "无限跳",
     Callback = function()
@@ -99,11 +99,11 @@ Tab:Button({
         end
         
         jumpConnection = UserInputService.JumpRequest:Connect(function()
-            local character = game.Players.LocalPlayer.Character
+            local character = Players.LocalPlayer.Character
             if character then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid:ChangeState("Jumping")
+                if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
             end
         end)
@@ -117,7 +117,6 @@ Tab:Button({
 })
 
 local lightConnection = nil
-
 Tab:Button({
     Title = "肩灯(点俩次)",
     Callback = function()
@@ -152,9 +151,9 @@ Tab:Toggle({
     Default = false,
     Callback = function(Value)
         if Value then
-            game.Lighting.Ambient = Color3.new(1, 1, 1)
+            Lighting.Ambient = Color3.new(1, 1, 1)
         else
-            game.Lighting.Ambient = Color3.new(0, 0, 0)
+            Lighting.Ambient = Color3.new(0, 0, 0)
         end
     end
 })
@@ -163,10 +162,12 @@ Tab:Toggle({
     Title = "开启聊天框",
     Default = true,
     Callback = function(state)
-        if state then
-            game.TextChatService.ChatWindowConfiguration.Enabled = true
-        else
-            game.TextChatService.ChatWindowConfiguration.Enabled = false    
+        local chatConfig = game:FindFirstChild("TextChatService")
+        if chatConfig then
+            local window = chatConfig:FindFirstChild("ChatWindowConfiguration")
+            if window then
+                window.Enabled = state
+            end
         end
     end
 })
@@ -178,16 +179,29 @@ local flightData = {
     speed = 50,
     originalGravity = nil,
     originalWalkSpeed = nil,
-    connection = nil
+    connection = nil,
+    bodyVelocity = nil,
+    bodyGyro = nil
 }
 
-local player = game.Players.LocalPlayer
+local player = Players.LocalPlayer
+
+local function clearFlightMovers()
+    if flightData.bodyVelocity then
+        flightData.bodyVelocity:Destroy()
+        flightData.bodyVelocity = nil
+    end
+    if flightData.bodyGyro then
+        flightData.bodyGyro:Destroy()
+        flightData.bodyGyro = nil
+    end
+end
 
 local function startFlight()
     local char = player.Character
     if not char then return end
     local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid then return end
+    if not humanoid or humanoid.Health <= 0 then return end
     
     flightData.originalGravity = workspace.Gravity
     flightData.originalWalkSpeed = humanoid.WalkSpeed
@@ -204,6 +218,22 @@ local function startFlight()
         flightData.connection = nil
     end
     
+    clearFlightMovers()
+    
+    local BV = Instance.new("BodyVelocity")
+    BV.MaxForce = Vector3.new(100000, 100000, 100000)
+    BV.Parent = rootPart
+    
+    local BG = Instance.new("BodyGyro")
+    BG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BG.D = 5000
+    BG.P = 50000
+    BG.CFrame = workspace.CurrentCamera.CFrame
+    BG.Parent = rootPart
+    
+    flightData.bodyVelocity = BV
+    flightData.bodyGyro = BG
+    
     flightData.connection = RunService.Heartbeat:Connect(function()
         if not flightData.isFlying then return end
         
@@ -211,16 +241,24 @@ local function startFlight()
         if not currentChar then return end
         
         local currentHumanoid = currentChar:FindFirstChild("Humanoid")
-        if not currentHumanoid then return end
+        if not currentHumanoid or currentHumanoid.Health <= 0 then return end
         
         local currentRoot = currentChar:FindFirstChild("HumanoidRootPart") or currentChar:FindFirstChild("Torso")
         if not currentRoot then return end
         
         local moveDirection = currentHumanoid.MoveDirection
         
-        if moveDirection.Magnitude > 0 then
-            currentChar:TranslateBy(moveDirection * flightData.speed * 0.1)
-            currentRoot.CFrame = CFrame.lookAt(currentRoot.Position, currentRoot.Position + moveDirection)
+        if moveDirection.Magnitude > 0.1 then
+            if flightData.bodyVelocity then
+                flightData.bodyVelocity.Velocity = moveDirection * flightData.speed
+            end
+            if flightData.bodyGyro then
+                flightData.bodyGyro.CFrame = CFrame.lookAt(currentRoot.Position, currentRoot.Position + moveDirection)
+            end
+        else
+            if flightData.bodyVelocity then
+                flightData.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
         end
     end)
 end
@@ -241,6 +279,8 @@ local function stopFlight()
             humanoid.PlatformStand = false
         end
     end
+    
+    clearFlightMovers()
     
     if flightData.connection then
         flightData.connection:Disconnect()
@@ -322,7 +362,8 @@ local vehicleFlightData = {
     isFlying = false,
     speed = 50,
     bodyVelocity = nil,
-    bodyGyro = nil
+    bodyGyro = nil,
+    connection = nil
 }
 
 local function getVehicleRoot()
@@ -356,13 +397,16 @@ local function applyVehicleFly(direction)
 
     clearVehicleMovers()
 
-    local BV = Instance.new("BodyVelocity", root)
-    local BG = Instance.new("BodyGyro", root)
+    local BV = Instance.new("BodyVelocity")
+    BV.MaxForce = Vector3.new(100000, 100000, 100000)
+    BV.Parent = root
+    
+    local BG = Instance.new("BodyGyro")
     BG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     BG.D = 5000
     BG.P = 50000
     BG.CFrame = workspace.CurrentCamera.CFrame
-    BV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BG.Parent = root
     
     vehicleFlightData.bodyVelocity = BV
     vehicleFlightData.bodyGyro = BG
@@ -370,11 +414,17 @@ local function applyVehicleFly(direction)
     if direction then
         BV.Velocity = direction * vehicleFlightData.speed
     end
+    
+    root.Anchored = false
 end
 
 local function stopVehicleFly()
     vehicleFlightData.isFlying = false
     clearVehicleMovers()
+    if vehicleFlightData.connection then
+        vehicleFlightData.connection:Disconnect()
+        vehicleFlightData.connection = nil
+    end
     local root = getVehicleRoot()
     if root then
         root.Anchored = false
@@ -462,17 +512,17 @@ Tab:Button({
 
 local Tab2 = Window:Tab({
     Title = "绘制",
-    Icon = "settings",
+    Icon = "eye",
     Locked = false,
 })
 
 Tab2:Section({Title = "玩家绘制", TextXAlignment = "Left", TextSize = 17})
 
 local localPlayer = Players.LocalPlayer
-local espEnabled = false
 local boxEnabled = false
 local nameEnabled = false
 local espConnection = nil
+local espRenderConnection = nil
 
 local espFolder = Instance.new("Folder")
 espFolder.Name = "ESPFolder"
@@ -489,6 +539,11 @@ local function createESP(targetPlayer)
     local head = char:FindFirstChild("Head")
     local humanoid = char:FindFirstChild("Humanoid")
     if not head or not humanoid or humanoid.Health <= 0 then return end
+    
+    local existing = espFolder:FindFirstChild(targetPlayer.Name)
+    if existing then
+        existing:Destroy()
+    end
     
     local playerFolder = Instance.new("Folder")
     playerFolder.Name = targetPlayer.Name
@@ -543,7 +598,23 @@ local function startESP()
         espConnection:Disconnect()
         espConnection = nil
     end
-    espConnection = RunService.RenderStepped:Connect(function()
+    if espRenderConnection then
+        espRenderConnection:Disconnect()
+        espRenderConnection = nil
+    end
+    
+    updateESP()
+    
+    espConnection = Players.PlayerAdded:Connect(function()
+        task.wait(0.1)
+        updateESP()
+    end)
+    espConnection = Players.PlayerRemoving:Connect(function()
+        task.wait(0.1)
+        updateESP()
+    end)
+    
+    espRenderConnection = RunService.RenderStepped:Connect(function()
         updateESP()
     end)
 end
@@ -552,6 +623,10 @@ local function stopESP()
     if espConnection then
         espConnection:Disconnect()
         espConnection = nil
+    end
+    if espRenderConnection then
+        espRenderConnection:Disconnect()
+        espRenderConnection = nil
     end
     clearESP()
 end
@@ -577,10 +652,27 @@ Tab2:Toggle({
     end
 })
 
+Tab2:Toggle({
+    Title = "显示名称",
+    Default = false,
+    Callback = function(v)
+        nameEnabled = v
+        checkESPState()
+    end
+})
+
+Tab2:Button({
+    Title = "刷新绘制",
+    Callback = function()
+        if boxEnabled or nameEnabled then
+            updateESP()
+        end
+    end
+})
 
 local Tab3 = Window:Tab({
     Title = "传送",
-    Icon = "settings",
+    Icon = "map-pin",
     Locked = false,
 })
 
@@ -691,3 +783,15 @@ Tab3:Button({
         end)
     end
 })
+
+game:BindToClose(function()
+    stopFlight()
+    stopVehicleFly()
+    stopESP()
+    if jumpConnection then
+        jumpConnection:Disconnect()
+    end
+    if lightConnection then
+        lightConnection:Disconnect()
+    end
+end)
