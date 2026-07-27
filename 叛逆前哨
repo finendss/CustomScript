@@ -8,7 +8,7 @@ local Lighting = game:GetService("Lighting")
 local Window = WindUI:CreateWindow({
     Title = "叛逆前哨",
     Icon = "sparkles",
-    Author = "BY.BOBO工作室",
+    Author = "BY.芝士球工作室",
     Folder = "DefenseSystem",
     Size = UDim2.fromOffset(400, 400),
     Theme = "Dark",
@@ -172,341 +172,837 @@ Tab:Toggle({
     end
 })
 
-Tab:Section({Title = "人物飞行", TextXAlignment = "Left", TextSize = 17})
-
-local flightData = {
-    isFlying = false,
-    speed = 50,
-    originalGravity = nil,
-    originalWalkSpeed = nil,
-    connection = nil,
-    bodyVelocity = nil,
-    bodyGyro = nil
-}
-
-local player = Players.LocalPlayer
-
-local function clearFlightMovers()
-    if flightData.bodyVelocity then
-        flightData.bodyVelocity:Destroy()
-        flightData.bodyVelocity = nil
-    end
-    if flightData.bodyGyro then
-        flightData.bodyGyro:Destroy()
-        flightData.bodyGyro = nil
-    end
-end
-
-local function startFlight()
-    local char = player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    
-    flightData.originalGravity = workspace.Gravity
-    flightData.originalWalkSpeed = humanoid.WalkSpeed
-    
-    workspace.Gravity = 0
-    humanoid.WalkSpeed = flightData.speed
-    humanoid.PlatformStand = true
-    
-    local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-    if not rootPart then return end
-    
-    if flightData.connection then
-        flightData.connection:Disconnect()
-        flightData.connection = nil
-    end
-    
-    clearFlightMovers()
-    
-    local BV = Instance.new("BodyVelocity")
-    BV.MaxForce = Vector3.new(100000, 100000, 100000)
-    BV.Parent = rootPart
-    
-    local BG = Instance.new("BodyGyro")
-    BG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BG.D = 5000
-    BG.P = 50000
-    BG.CFrame = workspace.CurrentCamera.CFrame
-    BG.Parent = rootPart
-    
-    flightData.bodyVelocity = BV
-    flightData.bodyGyro = BG
-    
-    flightData.connection = RunService.Heartbeat:Connect(function()
-        if not flightData.isFlying then return end
-        
-        local currentChar = player.Character
-        if not currentChar then return end
-        
-        local currentHumanoid = currentChar:FindFirstChild("Humanoid")
-        if not currentHumanoid or currentHumanoid.Health <= 0 then return end
-        
-        local currentRoot = currentChar:FindFirstChild("HumanoidRootPart") or currentChar:FindFirstChild("Torso")
-        if not currentRoot then return end
-        
-        local moveDirection = currentHumanoid.MoveDirection
-        
-        if moveDirection.Magnitude > 0.1 then
-            if flightData.bodyVelocity then
-                flightData.bodyVelocity.Velocity = moveDirection * flightData.speed
-            end
-            if flightData.bodyGyro then
-                flightData.bodyGyro.CFrame = CFrame.lookAt(currentRoot.Position, currentRoot.Position + moveDirection)
-            end
-        else
-            if flightData.bodyVelocity then
-                flightData.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end)
-end
-
-local function stopFlight()
-    local char = player.Character
-    if char then
-        local humanoid = char:FindFirstChild("Humanoid")
-        if humanoid then
-            if flightData.originalGravity then
-                workspace.Gravity = flightData.originalGravity
-                flightData.originalGravity = nil
-            end
-            if flightData.originalWalkSpeed then
-                humanoid.WalkSpeed = flightData.originalWalkSpeed
-                flightData.originalWalkSpeed = nil
-            end
-            humanoid.PlatformStand = false
-        end
-    end
-    
-    clearFlightMovers()
-    
-    if flightData.connection then
-        flightData.connection:Disconnect()
-        flightData.connection = nil
-    end
-end
-
 Tab:Toggle({
-    Title = "飞行",
+    Title = "除雾",
     Default = false,
-    Callback = function(v) 
-        pcall(function() 
-            flightData.isFlying = v
-            if v then
-                startFlight()
-            else
-                stopFlight()
-            end
-        end) 
-    end
-})
+    Callback = function(state)
+        if state then
+            getgenv().FogRemovalEnabled = true
 
-Tab:Slider({
-    Title = "飞行速度",
-    Value = {Min = 10, Max = 200, Default = 50},
-    Increment = 1,
-    Callback = function(v) 
-        pcall(function() 
-            flightData.speed = v
-            if flightData.isFlying then
-                local char = player.Character
-                if char then
-                    local humanoid = char:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid.WalkSpeed = v
-                    end
+            local Lighting = game:GetService("Lighting")
+            Lighting.FogStart = 100000
+            Lighting.FogEnd = 100000
+            Lighting.FogColor = Color3.fromRGB(0, 0, 0)
+            Lighting.Brightness = 2
+            Lighting.GlobalShadows = false
+            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+            Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+
+            for _, v in pairs(Lighting:GetDescendants()) do
+                if v:IsA("Atmosphere") then
+                    v:Destroy()
                 end
             end
-        end) 
-    end
-})
 
-Tab:Button({
-    Title = "上升",
-    Callback = function()
-        local char = player.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-            if root then
-                root.CFrame = root.CFrame + Vector3.new(0, 5, 0)
+            local connection
+            connection = game:GetService("RunService").RenderStepped:Connect(function()
+                if not getgenv().FogRemovalEnabled then
+                    connection:Disconnect()
+                    return
+                end
+                Lighting.FogStart = 100000
+                Lighting.FogEnd = 100000
+            end)
+            getgenv().FogConnection = connection
+
+        else
+            getgenv().FogRemovalEnabled = false
+            if getgenv().FogConnection then
+                getgenv().FogConnection:Disconnect()
+                getgenv().FogConnection = nil
             end
         end
     end
 })
 
-Tab:Button({
-    Title = "下降",
-    Callback = function()
-        local char = player.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-            if root then
-                root.CFrame = root.CFrame - Vector3.new(0, 5, 0)
-            end
-        end
-    end
-})
+Tab:Section({Title = "人物飞行", TextXAlignment = "Left", TextSize = 17})
 
-player.CharacterAdded:Connect(function()
-    if flightData.isFlying then
-        task.wait(0.5)
-        startFlight()
+Tab:Button({
+    Title = "加载人物飞行",
+    Callback = function()
+local main = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local up = Instance.new("TextButton")
+local down = Instance.new("TextButton")
+local onof = Instance.new("TextButton")
+local TextLabel = Instance.new("TextLabel")
+local plus = Instance.new("TextButton")
+local speed = Instance.new("TextLabel")
+local mine = Instance.new("TextButton")
+local closebutton = Instance.new("TextButton")
+local mini = Instance.new("TextButton")
+local mini2 = Instance.new("TextButton")
+
+main.Name = "main"
+main.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+main.ResetOnSpawn = false
+
+Frame.Parent = main
+Frame.BackgroundColor3 = Color3.fromRGB(163, 255, 137)
+Frame.BorderColor3 = Color3.fromRGB(103, 221, 213)
+Frame.Position = UDim2.new(0.100320168, 0, 0.379746825, 0)
+Frame.Size = UDim2.new(0, 190, 0, 57)
+
+up.Name = "up"
+up.Parent = Frame
+up.BackgroundColor3 = Color3.fromRGB(79, 255, 152)
+up.Size = UDim2.new(0, 44, 0, 28)
+up.Font = Enum.Font.SourceSans
+up.Text = "上"
+up.TextColor3 = Color3.fromRGB(0, 0, 0)
+up.TextSize = 14.000
+
+down.Name = "down"
+down.Parent = Frame
+down.BackgroundColor3 = Color3.fromRGB(215, 255, 121)
+down.Position = UDim2.new(0, 0, 0.491228074, 0)
+down.Size = UDim2.new(0, 44, 0, 28)
+down.Font = Enum.Font.SourceSans
+down.Text = "下"
+down.TextColor3 = Color3.fromRGB(0, 0, 0)
+down.TextSize = 14.000
+
+onof.Name = "onof"
+onof.Parent = Frame
+onof.BackgroundColor3 = Color3.fromRGB(255, 249, 74)
+onof.Position = UDim2.new(0.702823281, 0, 0.491228074, 0)
+onof.Size = UDim2.new(0, 56, 0, 28)
+onof.Font = Enum.Font.SourceSans
+onof.Text = "飞"
+onof.TextColor3 = Color3.fromRGB(0, 0, 0)
+onof.TextSize = 14.000
+
+TextLabel.Parent = Frame
+TextLabel.BackgroundColor3 = Color3.fromRGB(242, 60, 255)
+TextLabel.Position = UDim2.new(0.469327301, 0, 0, 0)
+TextLabel.Size = UDim2.new(0, 100, 0, 28)
+TextLabel.Font = Enum.Font.SourceSans
+TextLabel.Text = "飞行"
+TextLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextLabel.TextScaled = true
+TextLabel.TextSize = 14.000
+TextLabel.TextWrapped = true
+
+plus.Name = "plus"
+plus.Parent = Frame
+plus.BackgroundColor3 = Color3.fromRGB(133, 145, 255)
+plus.Position = UDim2.new(0.231578946, 0, 0, 0)
+plus.Size = UDim2.new(0, 45, 0, 28)
+plus.Font = Enum.Font.SourceSans
+plus.Text = "+"
+plus.TextColor3 = Color3.fromRGB(0, 0, 0)
+plus.TextScaled = true
+plus.TextSize = 14.000
+plus.TextWrapped = true
+
+speed.Name = "speed"
+speed.Parent = Frame
+speed.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
+speed.Position = UDim2.new(0.468421042, 0, 0.491228074, 0)
+speed.Size = UDim2.new(0, 44, 0, 28)
+speed.Font = Enum.Font.SourceSans
+speed.Text = "1"
+speed.TextColor3 = Color3.fromRGB(0, 0, 0)
+speed.TextScaled = true
+speed.TextSize = 14.000
+speed.TextWrapped = true
+
+mine.Name = "mine"
+mine.Parent = Frame
+mine.BackgroundColor3 = Color3.fromRGB(123, 255, 247)
+mine.Position = UDim2.new(0.231578946, 0, 0.491228074, 0)
+mine.Size = UDim2.new(0, 45, 0, 29)
+mine.Font = Enum.Font.SourceSans
+mine.Text = "-"
+mine.TextColor3 = Color3.fromRGB(0, 0, 0)
+mine.TextScaled = true
+mine.TextSize = 14.000
+mine.TextWrapped = true
+
+closebutton.Name = "Close"
+closebutton.Parent = main.Frame
+closebutton.BackgroundColor3 = Color3.fromRGB(225, 25, 0)
+closebutton.Font = "SourceSans"
+closebutton.Size = UDim2.new(0, 45, 0, 28)
+closebutton.Text = "关闭"
+closebutton.TextSize = 30
+closebutton.Position =  UDim2.new(0, 0, -1, 27)
+
+mini.Name = "minimize"
+mini.Parent = main.Frame
+mini.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
+mini.Font = "SourceSans"
+mini.Size = UDim2.new(0, 45, 0, 28)
+mini.Text = "缩"
+mini.TextSize = 30
+mini.Position = UDim2.new(0, 44, -1, 27)
+
+mini2.Name = "minimize2"
+mini2.Parent = main.Frame
+mini2.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
+mini2.Font = "SourceSans"
+mini2.Size = UDim2.new(0, 45, 0, 28)
+mini2.Text = "缩"
+mini2.TextSize = 30
+mini2.Position = UDim2.new(0, 44, -1, 57)
+mini2.Visible = false
+
+speeds = 1
+local speaker = game:GetService("Players").LocalPlayer
+local chr = game.Players.LocalPlayer.Character
+local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+nowe = false
+
+Frame.Active = true
+Frame.Draggable = true
+
+onof.MouseButton1Down:connect(function()
+    if nowe == true then
+        nowe = false
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,true)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,true)
+        speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+    else 
+        nowe = true
+        for i = 1, speeds do
+            spawn(function()
+                local hb = game:GetService("RunService").Heartbeat
+                tpwalking = true
+                local chr = game.Players.LocalPlayer.Character
+                local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                while tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                    if hum.MoveDirection.Magnitude > 0 then
+                        chr:TranslateBy(hum.MoveDirection)
+                    end
+                end
+            end)
+        end
+        game.Players.LocalPlayer.Character.Animate.Disabled = true
+        local Char = game.Players.LocalPlayer.Character
+        local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
+        for i,v in next, Hum:GetPlayingAnimationTracks() do
+            v:AdjustSpeed(0)
+        end
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
+        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
+        speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+    end
+    if game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
+        local plr = game.Players.LocalPlayer
+        local torso = plr.Character.Torso
+        local flying = true
+        local deb = true
+        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        local maxspeed = 50
+        local speed = 0
+        local bg = Instance.new("BodyGyro", torso)
+        bg.P = 9e4
+        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.cframe = torso.CFrame
+        local bv = Instance.new("BodyVelocity", torso)
+        bv.velocity = Vector3.new(0,0.1,0)
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        if nowe == true then
+            plr.Character.Humanoid.PlatformStand = true
+        end
+        while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+            game:GetService("RunService").RenderStepped:Wait()
+            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                speed = speed+.5+(speed/maxspeed)
+                if speed > maxspeed then
+                    speed = maxspeed
+                end
+            elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
+                speed = speed-1
+                if speed < 0 then
+                    speed = 0
+                end
+            end
+            if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+            elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
+                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+            else
+                bv.velocity = Vector3.new(0,0,0)
+            end
+            bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+        end
+        ctrl = {f = 0, b = 0, l = 0, r = 0}
+        lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        speed = 0
+        bg:Destroy()
+        bv:Destroy()
+        plr.Character.Humanoid.PlatformStand = false
+        game.Players.LocalPlayer.Character.Animate.Disabled = false
+        tpwalking = false
+    else
+        local plr = game.Players.LocalPlayer
+        local UpperTorso = plr.Character.UpperTorso
+        local flying = true
+        local deb = true
+        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        local maxspeed = 50
+        local speed = 0
+        local bg = Instance.new("BodyGyro", UpperTorso)
+        bg.P = 9e4
+        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.cframe = UpperTorso.CFrame
+        local bv = Instance.new("BodyVelocity", UpperTorso)
+        bv.velocity = Vector3.new(0,0.1,0)
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        if nowe == true then
+            plr.Character.Humanoid.PlatformStand = true
+        end
+        while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+            wait()
+            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                speed = speed+.5+(speed/maxspeed)
+                if speed > maxspeed then
+                    speed = maxspeed
+                end
+            elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
+                speed = speed-1
+                if speed < 0 then
+                    speed = 0
+                end
+            end
+            if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+            elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
+                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+            else
+                bv.velocity = Vector3.new(0,0,0)
+            end
+            bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+        end
+        ctrl = {f = 0, b = 0, l = 0, r = 0}
+        lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        speed = 0
+        bg:Destroy()
+        bv:Destroy()
+        plr.Character.Humanoid.PlatformStand = false
+        game.Players.LocalPlayer.Character.Animate.Disabled = false
+        tpwalking = false
     end
 end)
 
+local tis
+up.MouseButton1Down:connect(function()
+    tis = up.MouseEnter:connect(function()
+        while tis do
+            wait()
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,1,0)
+        end
+    end)
+end)
+up.MouseLeave:connect(function()
+    if tis then
+        tis:Disconnect()
+        tis = nil
+    end
+end)
+
+local dis
+down.MouseButton1Down:connect(function()
+    dis = down.MouseEnter:connect(function()
+        while dis do
+            wait()
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,-1,0)
+        end
+    end)
+end)
+down.MouseLeave:connect(function()
+    if dis then
+        dis:Disconnect()
+        dis = nil
+    end
+end)
+
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(0.7)
+    game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
+    game.Players.LocalPlayer.Character.Animate.Disabled = false
+end)
+
+plus.MouseButton1Down:connect(function()
+    speeds = speeds + 1
+    speed.Text = speeds
+    if nowe == true then
+        tpwalking = false
+        for i = 1, speeds do
+            spawn(function()
+                local hb = game:GetService("RunService").Heartbeat
+                tpwalking = true
+                local chr = game.Players.LocalPlayer.Character
+                local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                while tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                    if hum.MoveDirection.Magnitude > 0 then
+                        chr:TranslateBy(hum.MoveDirection)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+mine.MouseButton1Down:connect(function()
+    if speeds == 1 then
+        speed.Text = 'flyno1'
+        wait(1)
+        speed.Text = speeds
+    else
+        speeds = speeds - 1
+        speed.Text = speeds
+        if nowe == true then
+            tpwalking = false
+            for i = 1, speeds do
+                spawn(function()
+                    local hb = game:GetService("RunService").Heartbeat
+                    tpwalking = true
+                    local chr = game.Players.LocalPlayer.Character
+                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                    while tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                        if hum.MoveDirection.Magnitude > 0 then
+                            chr:TranslateBy(hum.MoveDirection)
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+closebutton.MouseButton1Click:Connect(function()
+    main:Destroy()
+end)
+
+mini.MouseButton1Click:Connect(function()
+    up.Visible = false
+    down.Visible = false
+    onof.Visible = false
+    plus.Visible = false
+    speed.Visible = false
+    mine.Visible = false
+    mini.Visible = false
+    mini2.Visible = true
+    main.Frame.BackgroundTransparency = 1
+    closebutton.Position =  UDim2.new(0, 0, -1, 57)
+end)
+
+mini2.MouseButton1Click:Connect(function()
+    up.Visible = true
+    down.Visible = true
+    onof.Visible = true
+    plus.Visible = true
+    speed.Visible = true
+    mine.Visible = true
+    mini.Visible = true
+    mini2.Visible = false
+    main.Frame.BackgroundTransparency = 0 
+    closebutton.Position =  UDim2.new(0, 0, -1, 27)
+end)
+    end
+})
+
 Tab:Section({Title = "载具飞行", TextXAlignment = "Left", TextSize = 17})
 
-local vehicleFlightData = {
-    isFlying = false,
-    speed = 50,
-    bodyVelocity = nil,
-    bodyGyro = nil,
-    connection = nil
+
+Tab:Button({
+    Title = "加载载具飞行",
+    Callback = function()
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Flym"
+screenGui.Parent = game.CoreGui
+
+local colors = {
+    primary = Color3.fromRGB(88, 101, 242),
+    primaryDark = Color3.fromRGB(54, 57, 63),
+    secondary = Color3.fromRGB(30, 32, 36),
+    accent = Color3.fromRGB(114, 137, 218),
+    success = Color3.fromRGB(0, 255, 0),
+    danger = Color3.fromRGB(255, 70, 70),
+    text = Color3.fromRGB(255, 255, 255),
+    textDim = Color3.fromRGB(180, 180, 180),
+    inputBg = Color3.fromRGB(40, 43, 48),
 }
 
-local function getVehicleRoot()
-    local char = player.Character
-    if not char then return nil end
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid then return nil end
-    local seat = humanoid.SeatPart
-    if seat then
-        local vehicle = seat.Parent
-        return vehicle:FindFirstChildWhichIsA("BasePart") or vehicle.PrimaryPart
-    end
-    return nil
+local function applyCorner(instance, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(radius or 0, radius and radius * 10 or 8)
+    corner.Parent = instance
+    return corner
 end
 
-local function clearVehicleMovers()
-    if vehicleFlightData.bodyVelocity then
-        vehicleFlightData.bodyVelocity:Destroy()
-        vehicleFlightData.bodyVelocity = nil
-    end
-    if vehicleFlightData.bodyGyro then
-        vehicleFlightData.bodyGyro:Destroy()
-        vehicleFlightData.bodyGyro = nil
-    end
+local function applyStroke(instance, color, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Color3.fromRGB(60, 60, 60)
+    stroke.Thickness = thickness or 1
+    stroke.Parent = instance
+    return stroke
 end
 
-local function applyVehicleFly(direction)
-    if not vehicleFlightData.isFlying then return end
-    local root = getVehicleRoot()
-    if not root then return end
+local dragFrame = Instance.new("Frame")
+dragFrame.Name = "Drag"
+dragFrame.Parent = screenGui
+dragFrame.Active = true
+dragFrame.BackgroundColor3 = colors.primaryDark
+dragFrame.BorderSizePixel = 0
+dragFrame.Draggable = true
+dragFrame.Position = UDim2.new(0.482, 0, 0.455, 0)
+dragFrame.Size = UDim2.new(0, 237, 0, 27)
+applyCorner(dragFrame, 0.5)
 
-    clearVehicleMovers()
+local flyFrame = Instance.new("Frame")
+flyFrame.Name = "FlyFrame"
+flyFrame.Parent = dragFrame
+flyFrame.BackgroundColor3 = colors.secondary
+flyFrame.BorderSizePixel = 0
+flyFrame.Position = UDim2.new(-0.002, 0, 0.989, 0)
+flyFrame.Size = UDim2.new(0, 237, 0, 139)
+applyCorner(flyFrame, 0.4)
 
-    local BV = Instance.new("BodyVelocity")
-    BV.MaxForce = Vector3.new(100000, 100000, 100000)
-    BV.Parent = root
+local titleLabel = Instance.new("TextButton")
+titleLabel.Parent = flyFrame
+titleLabel.BackgroundColor3 = colors.primary
+titleLabel.BorderSizePixel = 0
+titleLabel.Position = UDim2.new(-0.0002, 0, -0.004, 0)
+titleLabel.Size = UDim2.new(0, 237, 0, 27)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Text = "飞车"
+titleLabel.TextColor3 = colors.text
+titleLabel.TextScaled = true
+titleLabel.TextSize = 14
+titleLabel.TextWrapped = true
+applyCorner(titleLabel, 0.5)
+
+local divider = Instance.new("Frame")
+divider.Parent = flyFrame
+divider.BackgroundColor3 = colors.primary
+divider.BorderSizePixel = 0
+divider.Position = UDim2.new(0, 0, 0, 0.193)
+divider.Size = UDim2.new(1, 0, 0, 2)
+divider.BackgroundTransparency = 0.3
+
+local speedBox = Instance.new("TextBox")
+speedBox.Name = "速度"
+speedBox.Parent = flyFrame
+speedBox.BackgroundColor3 = colors.inputBg
+speedBox.BorderColor3 = colors.primary
+speedBox.BorderSizePixel = 0
+speedBox.Position = UDim2.new(0.445, 0, 0.403, 0)
+speedBox.Size = UDim2.new(0, 111, 0, 33)
+speedBox.Font = Enum.Font.GothamBold
+speedBox.PlaceholderColor3 = colors.textDim
+speedBox.Text = "50"
+speedBox.TextColor3 = colors.text
+speedBox.TextScaled = true
+speedBox.TextSize = 14
+speedBox.TextWrapped = true
+applyCorner(speedBox, 0.3)
+applyStroke(speedBox, colors.primary, 1)
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Name = "速度"
+speedLabel.Parent = flyFrame
+speedLabel.BackgroundColor3 = colors.secondary
+speedLabel.BorderSizePixel = 0
+speedLabel.Position = UDim2.new(0.076, 0, 0.403, 0)
+speedLabel.Size = UDim2.new(0, 87, 0, 32)
+speedLabel.ZIndex = 0
+speedLabel.Font = Enum.Font.GothamBold
+speedLabel.Text = "速度:"
+speedLabel.TextColor3 = colors.textDim
+speedLabel.TextScaled = true
+speedLabel.TextSize = 14
+speedLabel.TextWrapped = true
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "Stat"
+statusLabel.Parent = flyFrame
+statusLabel.BackgroundColor3 = colors.secondary
+statusLabel.BorderSizePixel = 0
+statusLabel.Position = UDim2.new(0.3, 0, 0.24, 0)
+statusLabel.Size = UDim2.new(0, 85, 0, 15)
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.Text = "状态:"
+statusLabel.TextColor3 = colors.textDim
+statusLabel.TextScaled = true
+statusLabel.TextSize = 14
+statusLabel.TextWrapped = true
+
+local statusIndicator = Instance.new("TextLabel")
+statusIndicator.Name = "Stat2"
+statusIndicator.Parent = flyFrame
+statusIndicator.BackgroundColor3 = colors.secondary
+statusIndicator.BorderSizePixel = 0
+statusIndicator.Position = UDim2.new(0.547, 0, 0.24, 0)
+statusIndicator.Size = UDim2.new(0, 27, 0, 15)
+statusIndicator.Font = Enum.Font.GothamBold
+statusIndicator.Text = "关"
+statusIndicator.TextColor3 = colors.danger
+statusIndicator.TextScaled = true
+statusIndicator.TextSize = 14
+statusIndicator.TextWrapped = true
+
+local flyButton = Instance.new("TextButton")
+flyButton.Name = "Fly"
+flyButton.Parent = flyFrame
+flyButton.BackgroundColor3 = colors.primary
+flyButton.BorderSizePixel = 0
+flyButton.Position = UDim2.new(0.076, 0, 0.706, 0)
+flyButton.Size = UDim2.new(0, 199, 0, 32)
+flyButton.Font = Enum.Font.GothamBold
+flyButton.Text = "开启飞行"
+flyButton.TextColor3 = colors.text
+flyButton.TextScaled = true
+flyButton.TextSize = 14
+flyButton.TextWrapped = true
+applyCorner(flyButton, 0.4)
+
+flyButton.MouseEnter:Connect(function()
+    flyButton.BackgroundColor3 = Color3.fromRGB(108, 121, 262)
+end)
+flyButton.MouseLeave:Connect(function()
+    flyButton.BackgroundColor3 = colors.primary
+end)
+
+local unflyButton = Instance.new("TextButton")
+unflyButton.Name = "Unfly"
+unflyButton.Parent = flyFrame
+unflyButton.BackgroundColor3 = colors.danger
+unflyButton.BorderSizePixel = 0
+unflyButton.Position = UDim2.new(0.076, 0, 0.706, 0)
+unflyButton.Size = UDim2.new(0, 199, 0, 32)
+unflyButton.Visible = false
+unflyButton.Font = Enum.Font.GothamBold
+unflyButton.Text = "关闭飞行"
+unflyButton.TextColor3 = colors.text
+unflyButton.TextScaled = true
+unflyButton.TextSize = 14
+unflyButton.TextWrapped = true
+applyCorner(unflyButton, 0.4)
+
+unflyButton.MouseEnter:Connect(function()
+    unflyButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+end)
+unflyButton.MouseLeave:Connect(function()
+    unflyButton.BackgroundColor3 = colors.danger
+end)
+
+local flyControlPanel = Instance.new("Frame")
+flyControlPanel.Name = "Fly on"
+flyControlPanel.Parent = screenGui
+flyControlPanel.BackgroundColor3 = colors.secondary
+flyControlPanel.BorderSizePixel = 0
+flyControlPanel.Position = UDim2.new(0.118, 0, 0.55, 0)
+flyControlPanel.Size = UDim2.new(0, 70, 0, 120)
+flyControlPanel.Visible = false
+flyControlPanel.Active = true
+flyControlPanel.Draggable = true
+applyCorner(flyControlPanel, 0.5)
+applyStroke(flyControlPanel, colors.primary, 1)
+
+local wButton = Instance.new("TextButton")
+wButton.Name = "W"
+wButton.Parent = flyControlPanel
+wButton.BackgroundColor3 = colors.primary
+wButton.BorderSizePixel = 0
+wButton.Position = UDim2.new(0.07, 0, 0.03, 0)
+wButton.Size = UDim2.new(0.86, 0, 0.46, 0)
+wButton.Font = Enum.Font.GothamBold
+wButton.Text = "^"
+wButton.TextColor3 = colors.text
+wButton.TextScaled = true
+wButton.TextSize = 14
+wButton.TextWrapped = true
+applyCorner(wButton, 0.4)
+
+wButton.MouseEnter:Connect(function()
+    wButton.BackgroundColor3 = Color3.fromRGB(108, 121, 262)
+end)
+wButton.MouseLeave:Connect(function()
+    wButton.BackgroundColor3 = colors.primary
+end)
+
+local sButton = Instance.new("TextButton")
+sButton.Name = "S"
+sButton.Parent = flyControlPanel
+sButton.BackgroundColor3 = colors.primary
+sButton.BorderSizePixel = 0
+sButton.Position = UDim2.new(0.07, 0, 0.51, 0)
+sButton.Size = UDim2.new(0.86, 0, 0.46, 0)
+sButton.Font = Enum.Font.GothamBold
+sButton.Text = "v"
+sButton.TextColor3 = colors.text
+sButton.TextScaled = true
+sButton.TextSize = 14
+sButton.TextWrapped = true
+applyCorner(sButton, 0.4)
+
+sButton.MouseEnter:Connect(function()
+    sButton.BackgroundColor3 = Color3.fromRGB(108, 121, 262)
+end)
+sButton.MouseLeave:Connect(function()
+    sButton.BackgroundColor3 = colors.primary
+end)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "Close"
+closeButton.Parent = dragFrame
+closeButton.BackgroundColor3 = colors.primary
+closeButton.BorderSizePixel = 0
+closeButton.Position = UDim2.new(0.875, 0, 0, 0)
+closeButton.Size = UDim2.new(0, 27, 0, 27)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Text = "X"
+closeButton.TextColor3 = colors.text
+closeButton.TextScaled = true
+closeButton.TextSize = 14
+closeButton.TextWrapped = true
+applyCorner(closeButton, 0.5)
+
+closeButton.MouseEnter:Connect(function()
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+end)
+closeButton.MouseLeave:Connect(function()
+    closeButton.BackgroundColor3 = colors.primary
+end)
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "Minimize"
+minimizeButton.Parent = dragFrame
+minimizeButton.BackgroundColor3 = colors.primary
+minimizeButton.BorderSizePixel = 0
+minimizeButton.Position = UDim2.new(0.75, 0, 0, 0)
+minimizeButton.Size = UDim2.new(0, 27, 0, 27)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = colors.text
+minimizeButton.TextScaled = true
+minimizeButton.TextSize = 14
+minimizeButton.TextWrapped = true
+applyCorner(minimizeButton, 0.5)
+
+flyButton.MouseButton1Click:Connect(function()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
     
-    local BG = Instance.new("BodyGyro")
-    BG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BG.D = 5000
-    BG.P = 50000
-    BG.CFrame = workspace.CurrentCamera.CFrame
-    BG.Parent = root
+    local humanoidRootPart = character.HumanoidRootPart
     
-    vehicleFlightData.bodyVelocity = BV
-    vehicleFlightData.bodyGyro = BG
-
-    if direction then
-        BV.Velocity = direction * vehicleFlightData.speed
-    end
+    flyButton.Visible = false
+    statusIndicator.Text = "开"
+    statusIndicator.TextColor3 = colors.success
+    unflyButton.Visible = true
+    flyControlPanel.Visible = true
     
-    root.Anchored = false
-end
+    local bodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    
+    local bodyGyro = Instance.new("BodyGyro", humanoidRootPart)
+    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bodyGyro.D = 5000
+    bodyGyro.P = 100000
+    
+    humanoidRootPart._flyVelocity = bodyVelocity
+    humanoidRootPart._flyGyro = bodyGyro
+    
+    game:GetService("RunService").RenderStepped:Connect(function()
+        if bodyGyro and bodyGyro.Parent then
+            bodyGyro.CFrame = game.Workspace.CurrentCamera.CFrame
+        end
+    end)
+end)
 
-local function stopVehicleFly()
-    vehicleFlightData.isFlying = false
-    clearVehicleMovers()
-    if vehicleFlightData.connection then
-        vehicleFlightData.connection:Disconnect()
-        vehicleFlightData.connection = nil
-    end
-    local root = getVehicleRoot()
-    if root then
-        root.Anchored = false
-    end
-end
+unflyButton.MouseButton1Click:Connect(function()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character.HumanoidRootPart
+    
+    flyButton.Visible = true
+    statusIndicator.Text = "关"
+    statusIndicator.TextColor3 = colors.danger
+    unflyButton.Visible = false
+    flyControlPanel.Visible = false
+    
+    wait()
+    
+    local vel = humanoidRootPart:FindFirstChildOfClass("BodyVelocity")
+    if vel then vel:Destroy() end
+    
+    local gyro = humanoidRootPart:FindFirstChildOfClass("BodyGyro")
+    if gyro then gyro:Destroy() end
+end)
 
-Tab:Toggle({
-    Title = "载具飞行",
-    Default = false,
-    Callback = function(v)
-        pcall(function()
-            vehicleFlightData.isFlying = v
-            if v then
-                applyVehicleFly(nil)
-            else
-                stopVehicleFly()
-            end
-        end)
-    end
-})
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
 
-Tab:Slider({
-    Title = "载具飞行速度",
-    Value = {Min = 10, Max = 200, Default = 50},
-    Increment = 1,
-    Callback = function(v)
-        pcall(function()
-            vehicleFlightData.speed = v
-        end)
-    end
-})
+local isMinimized = false
+minimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    flyFrame.Visible = not isMinimized
+    minimizeButton.Text = isMinimized and "+" or "-"
+end)
 
-Tab:Button({
-    Title = "上升",
-    Callback = function()
-        pcall(function()
-            if vehicleFlightData.isFlying then
-                applyVehicleFly(Vector3.new(0, 1, 0))
-            end
-        end)
-    end
-})
+wButton.MouseButton1Click:Connect(function()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character.HumanoidRootPart
+    local bodyVelocity = humanoidRootPart:FindFirstChildOfClass("BodyVelocity")
+    if not bodyVelocity then return end
+    
+    local speed = tonumber(speedBox.Text) or 50
+    bodyVelocity.Velocity = game.Workspace.CurrentCamera.CFrame.LookVector * speed
+end)
 
-Tab:Button({
-    Title = "下降",
-    Callback = function()
-        pcall(function()
-            if vehicleFlightData.isFlying then
-                applyVehicleFly(Vector3.new(0, -1, 0))
-            end
-        end)
-    end
-})
-
-Tab:Button({
-    Title = "前进",
-    Callback = function()
-        pcall(function()
-            if vehicleFlightData.isFlying then
-                applyVehicleFly(workspace.CurrentCamera.CFrame.LookVector)
-            end
-        end)
-    end
-})
-
-Tab:Button({
-    Title = "后退",
-    Callback = function()
-        pcall(function()
-            if vehicleFlightData.isFlying then
-                applyVehicleFly(-workspace.CurrentCamera.CFrame.LookVector)
-            end
-        end)
-    end
-})
-
-Tab:Button({
-    Title = "停止",
-    Callback = function()
-        pcall(function()
-            stopVehicleFly()
-        end)
+sButton.MouseButton1Click:Connect(function()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character.HumanoidRootPart
+    local bodyVelocity = humanoidRootPart:FindFirstChildOfClass("BodyVelocity")
+    if not bodyVelocity then return end
+    
+    local speed = tonumber(speedBox.Text) or 50
+    bodyVelocity.Velocity = -game.Workspace.CurrentCamera.CFrame.LookVector * speed
+end)
     end
 })
 
@@ -521,8 +1017,8 @@ Tab2:Section({Title = "玩家绘制", TextXAlignment = "Left", TextSize = 17})
 local localPlayer = Players.LocalPlayer
 local boxEnabled = false
 local nameEnabled = false
-local espConnection = nil
-local espRenderConnection = nil
+local espConnection
+local espRenderConnection
 
 local espFolder = Instance.new("Folder")
 espFolder.Name = "ESPFolder"
@@ -575,9 +1071,9 @@ local function createESP(targetPlayer)
         local highlight = Instance.new("Highlight")
         highlight.Name = "Box"
         highlight.Adornee = char
-        highlight.FillColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillColor = Color3.fromRGB(0, 150, 255)
         highlight.FillTransparency = 1
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineColor = Color3.fromRGB(0, 150, 255)
         highlight.OutlineTransparency = 0
         highlight.Parent = playerFolder
     end
@@ -609,7 +1105,8 @@ local function startESP()
         task.wait(0.1)
         updateESP()
     end)
-    espConnection = Players.PlayerRemoving:Connect(function()
+    
+    Players.PlayerRemoving:Connect(function()
         task.wait(0.1)
         updateESP()
     end)
@@ -644,7 +1141,7 @@ local function checkESPState()
 end
 
 Tab2:Toggle({
-    Title = "绘制方框",
+    Title = "绘制玩家",
     Default = false,
     Callback = function(v)
         boxEnabled = v
@@ -661,11 +1158,151 @@ Tab2:Toggle({
     end
 })
 
-Tab2:Button({
-    Title = "刷新绘制",
-    Callback = function()
-        if boxEnabled or nameEnabled then
-            updateESP()
+Tab2:Section({Title = "僵尸绘制", TextXAlignment = "Left", TextSize = 17})
+
+Tab2:Toggle({
+    Title = "绘制僵尸",
+    Default = false,
+    Callback = function(state)
+        if state then
+            getgenv().ESPZombieEnabled = true
+            task.spawn(function()
+                while getgenv().ESPZombieEnabled do
+                    pcall(function()
+                        local LocalPlayer = game:GetService("Players").LocalPlayer
+                        local char = LocalPlayer.Character
+                        if char and char.PrimaryPart then
+                            local spawned = workspace.EnemySpawns.Spawned:GetChildren()
+                            for i = 1, #spawned do
+                                local v = spawned[i]
+                                if v.Name == "Lurker" and v.PrimaryPart then
+                                    if v:FindFirstChild("ESP") then
+                                        local espText = v:FindFirstChild("EspText", true)
+                                        if espText then
+                                            local distance = math.round((char.PrimaryPart.Position - v.PrimaryPart.Position).Magnitude)
+                                            local text = "Lurker\n[" .. distance .. "m]"
+                                            if espText.Text ~= text then
+                                                espText.Text = text
+                                            end
+                                        end
+                                    else
+                                        local distance = math.round((char.PrimaryPart.Position - v.PrimaryPart.Position).Magnitude)
+                                        local text = "Lurker\n[" .. distance .. "m]"
+
+                                        local highlight = Instance.new("Highlight")
+                                        highlight.Name = "ESP"
+                                        highlight.FillTransparency = 1
+                                        highlight.OutlineColor = Color3.fromRGB(255, 50, 50)
+                                        highlight.Parent = v
+
+                                        local billboard = Instance.new("BillboardGui")
+                                        billboard.Parent = v.PrimaryPart
+                                        billboard.AlwaysOnTop = true
+                                        billboard.Size = UDim2.new(0, 100, 0, 30)
+                                        billboard.Name = "EspBili"
+                                        billboard.StudsOffset = Vector3.new(0, 3, 0)
+                                        billboard.MaxDistance = 500
+
+                                        local textLabel = Instance.new("TextLabel")
+                                        textLabel.Parent = billboard
+                                        textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                        textLabel.TextSize = 10
+                                        textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                                        textLabel.Name = "EspText"
+                                        textLabel.BackgroundTransparency = 1
+                                        textLabel.TextStrokeTransparency = 0
+                                        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                                        textLabel.Font = Enum.Font.SourceSansBold
+                                        textLabel.Text = text
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(0.3)
+                end
+            end)
+        else
+            getgenv().ESPZombieEnabled = false
+            pcall(function()
+                for _, v in ipairs(workspace.EnemySpawns.Spawned:GetChildren()) do
+                    if v.Name == "Lurker" then
+                        local esp = v:FindFirstChild("ESP")
+                        if esp then esp:Destroy() end
+                        local bb = v:FindFirstChild("EspBili")
+                        if bb then bb:Destroy() end
+                    end
+                end
+            end)
+        end
+    end
+})
+
+Tab2:Toggle({
+    Title = "绘制血量",
+    Default = false,
+    Callback = function(state)
+        if state then
+            getgenv().ESPHealthEnabled = true
+            task.spawn(function()
+                while getgenv().ESPHealthEnabled do
+                    pcall(function()
+                        local spawned = workspace.EnemySpawns.Spawned:GetChildren()
+                        for i = 1, #spawned do
+                            local v = spawned[i]
+                            if v.Name == "Lurker" and v.PrimaryPart then
+                                local healthTag = v:FindFirstChild("ESPHealthTag")
+                                if healthTag then
+                                    local humanoid = v:FindFirstChildOfClass("Humanoid")
+                                    if humanoid and humanoid.MaxHealth > 0 then
+                                        local healthPercent = math.round((humanoid.Health / humanoid.MaxHealth) * 100)
+                                        local tl = healthTag:FindFirstChild("TextLabel")
+                                        if tl and tl.Text ~= healthPercent .. "%" then
+                                            tl.Text = healthPercent .. "%"
+                                            if healthPercent > 50 then
+                                                tl.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                            elseif healthPercent > 25 then
+                                                tl.TextColor3 = Color3.fromRGB(255, 255, 0)
+                                            else
+                                                tl.TextColor3 = Color3.fromRGB(255, 0, 0)
+                                            end
+                                        end
+                                    end
+                                else
+                                    local billboard = Instance.new("BillboardGui")
+                                    billboard.Parent = v.PrimaryPart
+                                    billboard.AlwaysOnTop = true
+                                    billboard.Size = UDim2.new(0, 100, 0, 20)
+                                    billboard.Name = "ESPHealthTag"
+                                    billboard.StudsOffset = Vector3.new(0, 2, 0)
+                                    billboard.MaxDistance = 500
+
+                                    local textLabel = Instance.new("TextLabel")
+                                    textLabel.Parent = billboard
+                                    textLabel.Name = "TextLabel"
+                                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                    textLabel.BackgroundTransparency = 1
+                                    textLabel.TextSize = 12
+                                    textLabel.Font = Enum.Font.SourceSansBold
+                                    textLabel.Text = "100%"
+                                    textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(0.3)
+                end
+            end)
+        else
+            getgenv().ESPHealthEnabled = false
+            pcall(function()
+                for _, v in ipairs(workspace.EnemySpawns.Spawned:GetChildren()) do
+                    if v.Name == "Lurker" then
+                        local tag = v:FindFirstChild("ESPHealthTag")
+                        if tag then tag:Destroy() end
+                    end
+                end
+            end)
         end
     end
 })
@@ -719,6 +1356,8 @@ Tab3:Button({
         dropdown:SetValues(getPlayerList())
     end
 })
+
+local player = game:GetService("Players").LocalPlayer
 
 local function teleport(position)
     local char = player.Character
@@ -784,14 +1423,39 @@ Tab3:Button({
     end
 })
 
-game:BindToClose(function()
-    stopFlight()
-    stopVehicleFly()
-    stopESP()
-    if jumpConnection then
-        jumpConnection:Disconnect()
+Tab3:Button({
+    Title = "传送机场",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(3935.58, 253.02, -3148.36))
+        end)
     end
-    if lightConnection then
-        lightConnection:Disconnect()
+})
+
+Tab3:Button({
+    Title = "传送发电厂",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-172.63, 193.00, -2504.18))
+        end)
     end
-end)
+})
+
+Tab3:Button({
+    Title = "传送前线哨站",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(1695.98, 229.04, -3921.99))
+        end)
+    end
+})
+
+Tab3:Button({
+    Title = "传送城市",
+    Callback = function()
+        pcall(function()
+            teleport(Vector3.new(-1753.72, 193.06, -2080.23))
+        end)
+    end
+})
+
